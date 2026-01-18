@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key>
+    <string>BetterDictation</string>
+    
+    <key>CFBundleDisplayName</key>
+    <string>Better Dictation</string>
+    
+    <key>CFBundleIdentifier</key>
+    <string>com.betterdictation.app</string>
+    
+    <key>CFBundleVersion</key>
+    <string>1.0.0</string>
+    
+    <key>CFBundleShortVersionString</key>
+    <string>1.0.0</string>
+    
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    
+    <key>CFBundleExecutable</key>
+    <string>BetterDictation</string>
+    
+    <key>LSMinimumSystemVersion</key>
+    <string>14.0</string>
+    
+    <!-- Agent app (no dock icon) -->
+    <key>LSUIElement</key>
+    <true/>
+    
+    <!-- Privacy descriptions -->
+    <key>NSMicrophoneUsageDescription</key>
+    <string>BetterDictation needs microphone access to transcribe your speech into text.</string>
+    
+    <key>NSAccessibilityUsageDescription</key>
+    <string>BetterDictation needs accessibility access to insert transcribed text into applications and capture global hotkeys.</string>
+    
+    <!-- Support dark mode -->
+    <key>NSRequiresAquaSystemAppearance</key>
+    <false/>
+</dict>
+</plist>
