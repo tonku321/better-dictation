@@ -20,7 +20,7 @@ struct SettingsView: View {
                     Label("Модель", systemImage: "cpu")
                 }
         }
-        .frame(width: 450, height: 300)
+        .frame(width: 450, height: 350)
     }
 }
 
@@ -32,8 +32,6 @@ struct GeneralSettingsView: View {
     var body: some View {
         Form {
             Toggle("Запускать при входе", isOn: $launchAtLogin)
-            
-            // TODO: Добавить больше общих настроек
         }
         .formStyle(.grouped)
         .padding()
@@ -82,73 +80,116 @@ struct HotkeySettingsView: View {
 
 struct ModelSettingsView: View {
     @Environment(AppState.self) private var appState
-    @State private var selectedModel: WhisperModel = .base
-    
-    enum WhisperModel: String, CaseIterable {
-        case tiny = "tiny"
-        case base = "base"
-        case small = "small"
-        case medium = "medium"
-        case large = "large-v3"
-        
-        var displayName: String {
-            switch self {
-            case .tiny: return "Tiny (~75MB, самая быстрая)"
-            case .base: return "Base (~140MB, быстрая)"
-            case .small: return "Small (~460MB, баланс)"
-            case .medium: return "Medium (~1.4GB, точная)"
-            case .large: return "Large V3 (~3GB, самая точная)"
-            }
-        }
-    }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Picker("Модель Whisper", selection: $selectedModel) {
-                ForEach(WhisperModel.allCases, id: \.self) { model in
-                    Text(model.displayName).tag(model)
+        VStack(alignment: .leading, spacing: 20) {
+            // Заголовок
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Image(systemName: "waveform.circle.fill")
+                        .font(.largeTitle)
+                        .foregroundStyle(.blue)
+                    
+                    VStack(alignment: .leading) {
+                        Text("Whisper large-v3-turbo")
+                            .font(.title2)
+                            .fontWeight(.semibold)
+                        
+                        Text("~1.5 GB")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
+                
+                Text("OpenAI Whisper с поддержкой code-switching")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
             }
             
-            Text("Большие модели точнее, но требуют больше памяти и работают медленнее.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            Divider()
             
-            // Статус модели
+            // Особенности
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Особенности:")
+                    .font(.headline)
+                
+                Text("🌍 99+ языков с автоопределением")
+                    .font(.caption)
+                Text("🔀 Code-switching (русский + английский)")
+                    .font(.caption)
+                Text("⚡ Turbo версия - в 3x быстрее large-v3")
+                    .font(.caption)
+                Text("🎯 Высокое качество транскрипции")
+                    .font(.caption)
+            }
+            
+            Divider()
+            
+            // Статус и кнопка
             HStack {
-                Text("Статус:")
-                Spacer()
-                modelStatusText
-            }
-            
-            Button("Скачать / Загрузить модель") {
-                Task {
-                    await appState.downloadModel()
+                VStack(alignment: .leading) {
+                    Text("Статус:")
+                        .font(.subheadline)
+                    modelStatusView
                 }
+                
+                Spacer()
+                
+                downloadButton
             }
-            .disabled(appState.modelState == .loaded || appState.modelState == .downloading)
         }
         .padding()
     }
     
     @ViewBuilder
-    private var modelStatusText: some View {
+    private var modelStatusView: some View {
         switch appState.modelState {
         case .notLoaded:
-            Text("Не загружена")
+            Label("Не загружена", systemImage: "xmark.circle")
                 .foregroundStyle(.secondary)
         case .downloading:
-            Text("Скачивание...")
-                .foregroundStyle(.blue)
+            HStack(spacing: 8) {
+                ProgressView()
+                    .scaleEffect(0.7)
+                Text("Скачивание \(appState.downloadProgressText)")
+                    .foregroundStyle(.blue)
+            }
         case .loading:
-            Text("Загрузка...")
-                .foregroundStyle(.blue)
+            HStack(spacing: 8) {
+                ProgressView()
+                    .scaleEffect(0.7)
+                Text("Загрузка в память...")
+                    .foregroundStyle(.blue)
+            }
         case .loaded:
-            Text("Готова")
+            Label("Готова к работе", systemImage: "checkmark.circle.fill")
                 .foregroundStyle(.green)
         case .error(let message):
-            Text(message)
+            Label(message, systemImage: "exclamationmark.triangle.fill")
                 .foregroundStyle(.red)
+                .font(.caption)
+        }
+    }
+    
+    @ViewBuilder
+    private var downloadButton: some View {
+        switch appState.modelState {
+        case .notLoaded, .error:
+            Button("Скачать модель") {
+                Task {
+                    await appState.downloadModel()
+                }
+            }
+            .buttonStyle(.borderedProminent)
+            
+        case .downloading:
+            Button("Отменить") {
+                appState.cancelModelDownload()
+            }
+            .buttonStyle(.bordered)
+            
+        case .loading, .loaded:
+            EmptyView()
         }
     }
 }
