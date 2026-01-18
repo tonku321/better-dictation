@@ -43,9 +43,9 @@ final class SimpleWhisperService {
             self.onDownloadProgress?(0)
         }
         
-        // Скачиваем модель large-v3-turbo
+        // Скачиваем модель large-v3_turbo (с подчёркиванием!)
         let modelFolder = try await WhisperKit.download(
-            variant: "large-v3-turbo",
+            variant: "large-v3_turbo",
             downloadBase: modelsDirectory,
             useBackgroundSession: false,
             progressCallback: { [weak self] progress in
