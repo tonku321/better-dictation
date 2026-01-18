@@ -29,7 +29,8 @@ final class StreamingTranscriptionService {
     private var lastConfirmedWordCount: Int = 0
     
     /// Порог энергии для детекции голосовой активности
-    private let energyThreshold: Float = 0.001
+    /// ОЧЕНЬ низкий порог, чтобы не пропускать тихую речь
+    private let energyThreshold: Float = 0.00001
 
     // MARK: - Конфигурация
 
@@ -190,21 +191,32 @@ final class StreamingTranscriptionService {
     }
 
     func processAudioChunk(_ samples: [Float]) async {
-        guard isStreaming else { return }
+        guard isStreaming else { 
+            print("[DEBUG] processAudioChunk: не в режиме стриминга")
+            return 
+        }
 
         // Если уже идёт транскрипция, откладываем аудио на потом
         if isTranscribing {
             pendingAudio.append(contentsOf: samples)
+            print("[DEBUG] Транскрипция идёт, добавлено в pending: \(samples.count) сэмплов")
             return
         }
         
-        // Пропускаем тихие чанки для экономии ресурсов
-        guard hasVoiceActivity(samples) || !audioBuffer.isEmpty else {
+        // Проверяем голосовую активность (но всегда добавляем, если буфер не пустой)
+        let hasVoice = hasVoiceActivity(samples)
+        if !hasVoice && audioBuffer.isEmpty {
+            // Пропускаем только если тишина И буфер пустой
             return
+        }
+        
+        if hasVoice {
+            print("[DEBUG] Обнаружена голосовая активность, сэмплов: \(samples.count)")
         }
 
         // Добавляем сэмплы в буфер
         audioBuffer.append(contentsOf: samples)
+        print("[DEBUG] Буфер аудио: \(audioBuffer.count) сэмплов")
 
         // Обрезаем буфер, если слишком длинный (скользящее окно) - более агрессивно
         if audioBuffer.count > maxAudioWindow {
@@ -219,10 +231,12 @@ final class StreamingTranscriptionService {
 
         // Обрабатываем, если достаточно аудио
         if audioBuffer.count >= minAudioLength {
+            print("[DEBUG] Достаточно аудио (\(audioBuffer.count) >= \(minAudioLength)), запускаем транскрипцию")
             await processCurrentBuffer(isFinal: false)
             
             // Обрабатываем аудио, пришедшее во время транскрипции
             if !pendingAudio.isEmpty {
+                print("[DEBUG] Добавляем pending аудио: \(pendingAudio.count) сэмплов")
                 audioBuffer.append(contentsOf: pendingAudio)
                 pendingAudio = []
             }
@@ -230,17 +244,26 @@ final class StreamingTranscriptionService {
     }
 
     private func processCurrentBuffer(isFinal: Bool) async {
-        guard let whisper = whisperKit else { return }
-        guard !isTranscribing else { return }
+        guard let whisper = whisperKit else { 
+            print("[DEBUG] processCurrentBuffer: WhisperKit не загружен!")
+            return 
+        }
+        guard !isTranscribing else { 
+            print("[DEBUG] processCurrentBuffer: уже идёт транскрипция")
+            return 
+        }
         
         isTranscribing = true
         defer { isTranscribing = false }
+        
+        print("[DEBUG] Начинаем транскрипцию буфера: \(audioBuffer.count) сэмплов, isFinal: \(isFinal)")
 
         do {
             // Оптимизированные параметры декодирования для стриминга в реальном времени
+            // Язык НЕ указываем - модель определит автоматически
+            // Важно: distil модели поддерживают только английский!
             let options = DecodingOptions(
                 task: .transcribe,
-                language: "ru",
                 temperature: 0.0,
                 temperatureFallbackCount: 0,  // Без повторных попыток - быстрее
                 sampleLength: 224,  // Короткая длина сэмпла для быстрого декодирования
@@ -251,10 +274,12 @@ final class StreamingTranscriptionService {
                 clipTimestamps: []
             )
 
+            print("[DEBUG] Вызываем whisper.transcribe...")
             let results = try await whisper.transcribe(
                 audioArray: audioBuffer,
                 decodeOptions: options
             )
+            print("[DEBUG] Транскрипция завершена, результатов: \(results.count)")
 
             // Извлекаем текст
             let hypothesis = results
@@ -263,21 +288,31 @@ final class StreamingTranscriptionService {
                 .trimmingCharacters(in: .whitespacesAndNewlines)
                 .replacingOccurrences(of: "  ", with: " ")
             
-            guard !hypothesis.isEmpty else { return }
+            print("[DEBUG] Гипотеза: '\(hypothesis)'")
+            
+            guard !hypothesis.isEmpty else { 
+                print("[DEBUG] Гипотеза пустая, пропускаем")
+                return 
+            }
 
             // Eager streaming: немедленно выводим новые слова
             let currentWords = hypothesis.split(separator: " ").map(String.init)
             let previousWords = previousHypothesis.split(separator: " ").map(String.init)
             
+            print("[DEBUG] Текущие слова: \(currentWords.count), предыдущие: \(previousWords.count)")
+            print("[DEBUG] lastConfirmedWordCount: \(lastConfirmedWordCount)")
+            
             if isFinal {
                 // При финализации выводим всё, что ещё не подтверждено
                 let remaining = getUnconfirmedText(from: hypothesis)
+                print("[DEBUG] FINAL - оставшийся текст: '\(remaining)'")
                 if !remaining.isEmpty {
                     onConfirmedText?(remaining)
                 }
             } else {
                 // Находим стабильный префикс (слова, совпадающие с предыдущей транскрипцией)
                 let stableWords = findStablePrefix(current: currentWords, previous: previousWords)
+                print("[DEBUG] Стабильных слов: \(stableWords.count)")
                 
                 // Выводим новые стабильные слова немедленно
                 if stableWords.count > lastConfirmedWordCount {
@@ -285,12 +320,15 @@ final class StreamingTranscriptionService {
                     let newText = newWords.joined(separator: " ")
                     let prefix = lastConfirmedWordCount > 0 ? " " : ""
                     
+                    print("[DEBUG] ПОДТВЕРЖДАЕМ ТЕКСТ: '\(prefix + newText)'")
                     onConfirmedText?(prefix + newText)
                     confirmedText += prefix + newText
                     lastConfirmedWordCount = stableWords.count
                     
                     // Агрессивно обрезаем аудио после подтверждения
                     trimConfirmedAudio(wordCount: stableWords.count)
+                } else {
+                    print("[DEBUG] Нет новых стабильных слов (stableWords: \(stableWords.count), lastConfirmed: \(lastConfirmedWordCount))")
                 }
                 
                 // Показываем неподтверждённую гипотезу

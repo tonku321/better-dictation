@@ -51,9 +51,9 @@ final class ModelManager {
     // MARK: - Обнаружение моделей
     
     func refreshAvailableModels() async {
-        // Модели WhisperKit, доступные в репозитории HuggingFace
-        // Это распространённые модели, которые хорошо работают на Apple Silicon
-        // distil модели в 6 раз быстрее с похожим качеством!
+        // Модели WhisperKit, доступные в репозитории HuggingFace argmaxinc/whisperkit-coreml
+        // Названия должны точно соответствовать именам папок в репозитории
+        // distil-large-v3 в 6 раз быстрее с похожим качеством!
         availableModels = [
             "tiny",
             "tiny.en",
@@ -61,13 +61,14 @@ final class ModelManager {
             "base.en",
             "small",
             "small.en",
-            "distil-small.en",
             "medium",
             "medium.en",
-            "distil-medium.en",
             "large-v3",
             "large-v3-turbo",
-            "distil-large-v3"
+            "large-v3-v20240930",
+            "large-v3-v20240930_turbo",
+            "distil-large-v3",          // distil-whisper_distil-large-v3
+            "distil-large-v3_turbo"     // distil-whisper_distil-large-v3_turbo
         ]
         
         // Проверяем, какие модели уже скачаны
@@ -103,11 +104,19 @@ final class ModelManager {
                     return FileManager.default.fileExists(atPath: configPath.path)
                 }
                 .compactMap { url -> String? in
-                    // Извлекаем имя модели из имени папки (например, "openai_whisper-base" -> "base")
+                    // Извлекаем имя модели из имени папки
                     let folderName = url.lastPathComponent
+                    
+                    // OpenAI модели: "openai_whisper-base" -> "base"
                     if folderName.hasPrefix("openai_whisper-") {
                         return String(folderName.dropFirst("openai_whisper-".count))
                     }
+                    
+                    // Distil модели: "distil-whisper_distil-large-v3" -> "distil-large-v3"
+                    if folderName.hasPrefix("distil-whisper_") {
+                        return String(folderName.dropFirst("distil-whisper_".count))
+                    }
+                    
                     return nil
                 }
             
@@ -198,10 +207,18 @@ final class ModelManager {
     
     /// Удалить скачанную модель
     func deleteModel(_ modelName: String) throws {
-        // WhisperKit хранит модели в: downloadBase/models/argmaxinc/whisperkit-coreml/openai_whisper-{model}
-        let modelPath = modelsDirectory
-            .appendingPathComponent("models/argmaxinc/whisperkit-coreml")
-            .appendingPathComponent("openai_whisper-\(modelName)")
+        // WhisperKit хранит модели в: downloadBase/models/argmaxinc/whisperkit-coreml/
+        // OpenAI модели: openai_whisper-{model}
+        // Distil модели: distil-whisper_{model}
+        let basePath = modelsDirectory.appendingPathComponent("models/argmaxinc/whisperkit-coreml")
+        
+        let modelPath: URL
+        if modelName.hasPrefix("distil-") {
+            modelPath = basePath.appendingPathComponent("distil-whisper_\(modelName)")
+        } else {
+            modelPath = basePath.appendingPathComponent("openai_whisper-\(modelName)")
+        }
+        
         try FileManager.default.removeItem(at: modelPath)
     }
     
@@ -224,22 +241,29 @@ struct ModelInfo: Identifiable {
     var id: String { name }
     
     /// Имена должны соответствовать репозиторию WhisperKit: argmaxinc/whisperkit-coreml
-    /// distil модели в 6 раз быстрее с ~1% потерей качества - лучшие для реального времени!
+    /// distil-large-v3 в 6 раз быстрее с ~1% потерей качества - лучшая для реального времени!
     static let all: [ModelInfo] = [
         // Быстрые модели
-        ModelInfo(name: "tiny", displayName: "Tiny", size: "75 MB", description: "Самая быстрая, базовое качество"),
-        ModelInfo(name: "base", displayName: "Base", size: "140 MB", description: "Быстрая, хорошее качество"),
-        ModelInfo(name: "small", displayName: "Small", size: "460 MB", description: "Хороший баланс"),
+        ModelInfo(name: "tiny", displayName: "Tiny", size: "~40 MB", description: "Самая быстрая, базовое качество"),
+        ModelInfo(name: "tiny.en", displayName: "Tiny (EN)", size: "~40 MB", description: "Только English, чуть лучше качество"),
+        ModelInfo(name: "base", displayName: "Base", size: "~140 MB", description: "Быстрая, хорошее качество"),
+        ModelInfo(name: "base.en", displayName: "Base (EN)", size: "~140 MB", description: "Только English"),
+        ModelInfo(name: "small", displayName: "Small", size: "~460 MB", description: "Хороший баланс скорость/качество"),
+        ModelInfo(name: "small.en", displayName: "Small (EN)", size: "~460 MB", description: "Только English"),
+        
+        // Средние модели
+        ModelInfo(name: "medium", displayName: "Medium", size: "~1.4 GB", description: "Высокое качество"),
+        ModelInfo(name: "medium.en", displayName: "Medium (EN)", size: "~1.4 GB", description: "Только English"),
         
         // Distil модели - РЕКОМЕНДУЮТСЯ для реального времени! В 6 раз быстрее
-        ModelInfo(name: "distil-small.en", displayName: "Distil Small", size: "~350 MB", description: "⚡ 6x быстрее Small, только English"),
-        ModelInfo(name: "distil-medium.en", displayName: "Distil Medium", size: "~750 MB", description: "⚡ 6x быстрее Medium, только English"),
-        ModelInfo(name: "distil-large-v3", displayName: "Distil Large V3", size: "~1.5 GB", description: "⚡ ЛУЧШИЙ: 6x быстрее, качество Large"),
+        ModelInfo(name: "distil-large-v3", displayName: "⚡ Distil Large V3", size: "~600 MB", description: "🔥 ЛУЧШАЯ: 6x быстрее, качество Large!"),
+        ModelInfo(name: "distil-large-v3_turbo", displayName: "⚡ Distil Large V3 Turbo", size: "~600 MB", description: "🔥 Ещё быстрее с turbo оптимизацией"),
         
-        // Большие модели - медленнее, но высочайшее качество
-        ModelInfo(name: "medium", displayName: "Medium", size: "1.4 GB", description: "Высокое качество, медленнее"),
-        ModelInfo(name: "large-v3_turbo", displayName: "Large V3 Turbo", size: "1.5 GB", description: "Высокое качество, оптимизированная"),
-        ModelInfo(name: "large-v3", displayName: "Large V3", size: "3 GB", description: "Максимальное качество, самая медленная"),
+        // Large модели - высочайшее качество
+        ModelInfo(name: "large-v3", displayName: "Large V3", size: "~3 GB", description: "Максимальное качество, медленная"),
+        ModelInfo(name: "large-v3-turbo", displayName: "Large V3 Turbo", size: "~1.5 GB", description: "Turbo оптимизация"),
+        ModelInfo(name: "large-v3-v20240930", displayName: "Large V3 (2024)", size: "~600 MB", description: "Новая версия, компактнее"),
+        ModelInfo(name: "large-v3-v20240930_turbo", displayName: "Large V3 (2024) Turbo", size: "~630 MB", description: "Новая версия + turbo"),
     ]
     
     static func info(for name: String) -> ModelInfo? {
