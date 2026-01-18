@@ -11,7 +11,7 @@ struct MenuBarView: View {
                 Divider()
             }
             
-            // Выбор модели (всегда видим)
+            // Модель Parakeet
             modelSection
             
             Divider()
@@ -58,11 +58,90 @@ struct MenuBarView: View {
         }
     }
     
-    // MARK: - Секция модели
+    // MARK: - Секция модели Parakeet
     
     private var modelSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            modelRow()
+        VStack(alignment: .leading, spacing: 8) {
+            // Заголовок
+            HStack {
+                Image(systemName: "waveform.circle.fill")
+                    .foregroundStyle(.blue)
+                Text("Parakeet TDT v3")
+                    .font(.headline)
+                Spacer()
+            }
+            
+            // Статус и кнопка действия
+            HStack {
+                modelStatusView
+                Spacer()
+                modelActionButton
+            }
+            
+            // Краткое описание
+            Text("🇷🇺 Русский + 🇬🇧 English • Автоопределение языка")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+    
+    @ViewBuilder
+    private var modelStatusView: some View {
+        switch appState.modelState {
+        case .notLoaded:
+            Label("Не загружена", systemImage: "xmark.circle")
+                .foregroundStyle(.secondary)
+                .font(.caption)
+        case .downloading:
+            HStack(spacing: 4) {
+                ProgressView()
+                    .controlSize(.small)
+                Text(appState.downloadProgressText)
+                    .font(.caption)
+                    .monospacedDigit()
+                    .foregroundStyle(.blue)
+            }
+        case .loading:
+            HStack(spacing: 4) {
+                ProgressView()
+                    .controlSize(.small)
+                Text("Загрузка...")
+                    .font(.caption)
+                    .foregroundStyle(.blue)
+            }
+        case .loaded:
+            Label("Готова", systemImage: "checkmark.circle.fill")
+                .foregroundStyle(.green)
+                .font(.caption)
+        case .error(let message):
+            Label(message, systemImage: "exclamationmark.triangle.fill")
+                .foregroundStyle(.red)
+                .font(.caption)
+                .lineLimit(1)
+        }
+    }
+    
+    @ViewBuilder
+    private var modelActionButton: some View {
+        switch appState.modelState {
+        case .notLoaded, .error:
+            Button("Скачать") {
+                Task {
+                    await appState.downloadModel()
+                }
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            
+        case .downloading:
+            Button("Отмена") {
+                appState.cancelModelDownload()
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            
+        case .loading, .loaded:
+            EmptyView()
         }
     }
     
@@ -117,92 +196,6 @@ struct MenuBarView: View {
                 .buttonStyle(.bordered)
                 .controlSize(.small)
             }
-        }
-    }
-    
-    // MARK: - Строка модели
-    
-    private func modelRow() -> some View {
-        modelSelector()
-    }
-    
-    @ViewBuilder
-    private func modelSelector() -> some View {
-        HStack(spacing: 8) {
-            // Выбор модели (слева)
-            Picker("", selection: Binding(
-                get: { appState.modelManager.selectedModel },
-                set: { newModel in
-                    // Отменяем текущую загрузку, если есть
-                    if appState.modelState == .downloading {
-                        appState.cancelModelDownload()
-                    }
-                    
-                    appState.modelManager.selectedModel = newModel
-                    
-                    // Автозагрузка, если уже скачана
-                    if appState.modelManager.downloadedModels.contains(newModel) {
-                        Task {
-                            await appState.loadSelectedModel()
-                        }
-                    }
-                }
-            )) {
-                // Пустой вариант всегда доступен
-                Text("—").tag("")
-                
-                ForEach(ModelInfo.all) { model in
-                    if appState.modelManager.downloadedModels.contains(model.name) {
-                        Text("\(model.displayName) ✓")
-                            .tag(model.name)
-                    } else {
-                        Text("\(model.displayName) (\(model.size))")
-                            .tag(model.name)
-                    }
-                }
-            }
-            .labelsHidden()
-            .fixedSize()
-            .disabled(appState.modelState == .loading)
-            
-            // Прогресс или действие (справа от выбора)
-            if appState.modelState == .downloading {
-                ProgressView()
-                    .controlSize(.small)
-                Text(appState.downloadProgressText)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .monospacedDigit()
-            } else if appState.modelState == .loading {
-                ProgressView()
-                    .controlSize(.small)
-            } else if !appState.modelManager.selectedModel.isEmpty && appState.modelManager.downloadedModels.contains(appState.modelManager.selectedModel) {
-                // Скачана: кнопка удаления
-                Button {
-                    Task {
-                        await appState.deleteModel(appState.modelManager.selectedModel)
-                    }
-                } label: {
-                    Image(systemName: "trash")
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
-                .help("Удалить модель")
-            } else if !appState.modelManager.selectedModel.isEmpty {
-                // Не скачана: кнопка загрузки
-                Button {
-                    Task {
-                        await appState.downloadModel()
-                    }
-                } label: {
-                    Image(systemName: "arrow.down.circle")
-                        .foregroundStyle(.blue)
-                }
-                .buttonStyle(.plain)
-                .help("Скачать модель")
-            }
-            
-            Spacer()
         }
     }
 }

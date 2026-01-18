@@ -5,7 +5,7 @@ import Observation
 final class DictationManager {
     // MARK: - Зависимости
     private let audioService: AudioCaptureService
-    private let transcriptionService: StreamingTranscriptionService
+    private let transcriptionService: ParakeetTranscriptionService
     private let textInsertionService: TextInsertionService
     
     // MARK: - Состояние
@@ -20,7 +20,7 @@ final class DictationManager {
     
     init(
         audioService: AudioCaptureService,
-        transcriptionService: StreamingTranscriptionService,
+        transcriptionService: ParakeetTranscriptionService,
         textInsertionService: TextInsertionService
     ) {
         self.audioService = audioService

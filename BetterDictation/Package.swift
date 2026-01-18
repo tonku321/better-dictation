@@ -10,13 +10,14 @@ let package = Package(
         .executable(name: "BetterDictation", targets: ["BetterDictation"])
     ],
     dependencies: [
-        .package(url: "https://github.com/argmaxinc/WhisperKit.git", from: "0.9.0"),
+        // FluidAudio для Parakeet TDT v3 - быстрая multilingual транскрипция
+        .package(url: "https://github.com/FluidInference/FluidAudio.git", from: "0.7.9"),
     ],
     targets: [
         .executableTarget(
             name: "BetterDictation",
             dependencies: [
-                .product(name: "WhisperKit", package: "WhisperKit"),
+                .product(name: "FluidAudio", package: "FluidAudio"),
             ],
             path: "Sources/BetterDictation",
             resources: [
