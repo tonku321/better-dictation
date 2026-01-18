@@ -63,17 +63,22 @@ final class SimpleWhisperService {
             self.onDownloadProgress?(-1)  // Сигнал: загрузка в память
         }
         
+        print("Загружаем модель в память...")
+        
         // Загружаем модель
         let config = WhisperKitConfig(
             modelFolder: modelFolder.path,
-            verbose: false,
-            logLevel: .error
+            verbose: true,
+            logLevel: .info
         )
         
+        print("Создаём WhisperKit...")
         whisperKit = try await WhisperKit(config)
+        print("WhisperKit создан!")
+        
         isModelLoaded = true
         
-        print("Whisper large-v3-turbo готов к работе")
+        print("Whisper large-v3_turbo готов к работе")
     }
     
     func loadModel() async throws {
@@ -126,10 +131,10 @@ final class SimpleWhisperService {
         print("Транскрибируем \(audioBuffer.count) сэмплов (~\(String(format: "%.1f", duration)) сек)")
         
         do {
-            // Настройки для multilingual с автоопределением языка
+            // Русский как основной язык, но английские слова тоже распознаёт
             let options = DecodingOptions(
                 task: .transcribe,
-                // Не указываем язык - Whisper сам определит и поддержит code-switching
+                language: "ru",  // Основной язык - русский
                 temperature: 0.0,
                 temperatureFallbackCount: 3,
                 sampleLength: 224,
